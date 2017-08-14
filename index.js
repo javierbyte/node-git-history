@@ -3,89 +3,84 @@ const { spawn } = require("child_process");
 const kSplitString = "&!!&";
 
 const validArgs = [
-	"H",
-	"h",
-	"T",
-	"t",
-	"P",
-	"p",
-	"an",
-	"ae",
-	"ad",
-	"ar",
-	"cn",
-	"ce",
-	"cd",
-	"cr",
-	"s"
+  "H",
+  "h",
+  "T",
+  "t",
+  "P",
+  "p",
+  "an",
+  "ae",
+  "ad",
+  "ar",
+  "cn",
+  "ce",
+  "cd",
+  "cr",
+  "s"
 ];
 
 function getCommits(path = ".", options) {
-	return new Promise((resolve, reject) => {
-		if (!options || !options.length || typeof options.constructor === Array) {
-			reject("Options is required and must be an array");
-			return;
-		}
+  return new Promise((resolve, reject) => {
+    if (!options || !options.length || typeof options.constructor === Array) {
+      reject("Options is required and must be an array");
+      return;
+    }
 
-		const invalidArg = options.find(option => {
-			return validArgs.indexOf(option) === -1;
-		});
+    const invalidArg = options.find(option => {
+      return validArgs.indexOf(option) === -1;
+    });
 
-		if (invalidArg) {
-			reject(`"${invalidArg}" is not a valid argument`);
-		}
+    if (invalidArg) {
+      reject(`"${invalidArg}" is not a valid argument`);
+    }
 
-		const prettyFormatArg = options
-			.map(option => "%" + option)
-			.join(kSplitString);
+    try {
+      process.chdir(path);
+    } catch (err) {
+      reject(err);
+      return;
+    }
 
-		let results = [];
+    const gitProcess = spawn("git", [
+      `log`,
+      `--pretty=format:${options
+        .map(option => "%" + option)
+        .join(kSplitString)}`
+    ]);
 
-		try {
-			process.chdir(path);
-		} catch (err) {
-			reject(err);
-			return;
-		}
+    let results = [];
+    gitProcess.stdout.on("data", data => {
+      const resultsToAppend = `${data}`
+        .split("\n")
+        .filter(resultRow => resultRow.length)
+        .map(resultRow => {
+          const splittedResultRow = resultRow.split(kSplitString);
 
-		console.log("Starting git");
+          return options.reduce((res, option, optionIdx) => {
+            res[option] = splittedResultRow[optionIdx];
+            return res;
+          }, {});
+        });
 
-		const gitProcess = spawn("git", [
-			`log`,
-			`--pretty=format:${prettyFormatArg}`
-		]);
+      results = results.concat(resultsToAppend);
+    });
 
-		gitProcess.stdout.on("data", data => {
-			const resultsToAppend = `${data}`
-				.split("\n")
-				.filter(resultRow => resultRow.length)
-				.map(resultRow => {
-					const splittedResultRow = resultRow.split(kSplitString);
+    gitProcess.stderr.on("data", errMessage => {
+      reject(`${errMessage}`);
+      gitProcess.stdin.pause();
+      gitProcess.kill();
+    });
 
-					return options.reduce((res, option, optionIdx) => {
-						res[option] = splittedResultRow[optionIdx];
-						return res;
-					}, {});
-				});
+    gitProcess.on("close", code => {
+      if (`${code}` !== "0") {
+        reject(`Error on git ${code}`);
+        return;
+      }
 
-			results = results.concat(resultsToAppend);
-		});
-
-		gitProcess.stderr.on("data", errMessage => {
-			reject(`${errMessage}`);
-			gitProcess.stdin.pause();
-			gitProcess.kill();
-		});
-
-		gitProcess.on("close", code => {
-			if (`${code}` !== "0") {
-				reject(`Error on git ${code}`);
-				return;
-			}
-
-			resolve(results);
-		});
-	});
+      resolve(results);
+    });
+  });
 }
 
 module.exports = getCommits;
