@@ -35,6 +35,7 @@ function getCommits(path = ".", options) {
       reject(`"${invalidArg}" is not a valid argument`);
     }
 
+    let originalCwd = process.cwd();
     try {
       process.chdir(path);
     } catch (err) {
@@ -73,6 +74,12 @@ function getCommits(path = ".", options) {
     });
 
     gitProcess.on("close", code => {
+      try {
+        process.chdir(originalCwd);
+      } catch (e) {
+        reject("Oh no, there was an error restoring the working directory");
+      }
+
       if (`${code}` !== "0") {
         reject(`Error on git ${code}`);
         return;

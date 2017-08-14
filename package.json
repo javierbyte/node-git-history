@@ -1,6 +1,6 @@
 {
   "name": "node-git-history",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A git wrapper for node to get a repo history data",
   "main": "index.js",
   "scripts": {
